@@ -6,10 +6,27 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import COMMASPACE, formatdate
-
 from contextlib import redirect_stdout, redirect_stderr
 import argparse
 
+
+
+'''stupid python can not stand infinitives'''
+months = \
+{
+    1:"январь",
+    2:"февраль",
+    3:"март",
+    4:"апрель",
+    5:"май",
+    6:"июнь",
+    7:"июль",
+    8:"август",
+    9:"сентябрь",
+    10:"октябрь",
+    11:"ноябрь",
+    12:"декабрь",
+}
 
 def send_mail(smtp_server, send_from, send_to, subject="", text="", files=None):
     '''Sends email with attachments using logged smtp_server object'''
@@ -41,6 +58,13 @@ def read_configuration(config_file):
             conf[k] = v
     return conf
 
+def generate_subject_and_body(raw_code, subject_raw, body_raw):
+    '''Generates subject and body of the letter based on raw code and dummy strings'''
+    year, month, _, _ = raw_code.split("_") # year_month_code_
+    month = months[int(month)]
+    subject = subject_raw.format(month, year)
+    body = body_raw.format(month, year)
+    return subject, body
 
 def process_csv(smtp_server, csvfile, config):
     '''Processes strings from csvfile and returns filename of a modified copy of csvfile'''
@@ -48,27 +72,32 @@ def process_csv(smtp_server, csvfile, config):
         reader = csv.reader(csvfile, delimiter=config["delimiter"])
         writer = csv.writer(tmp, delimiter=config["delimiter"])
         for i, row in enumerate(reader):
-            filename, mode, timepoint, price, raw_recepient, company_name = row
+            raw_code, mode, timepoint, price, raw_recepient, company_name, file1, file2 = row
             recepient = raw_recepient.replace("*", "").strip()
+            subject, body = generate_subject_and_body(raw_code, config["subject_raw"], config["body_raw"])
+            files = [file1.strip(), file2.strip()]
+            should_send = True
 
             if mode.strip() == 'NO_SENT':
-                send_mail(smtp_server, 
-                    send_from=config["from"], send_to=recepient, 
-                    subject=config["subject"], text=config["body"], files=[filename])
                 timepoint = formatdate(localtime=True)
                 print("Sent email on line {}".format(i))
             elif mode.strip() == "TEST":
-                send_mail(smtp_server, 
-                    send_from=config["from"], send_to=config["test_recepient"], 
-                    subject=config["subject"], text=config["body"], files=[filename])
+                recepient = config["test_recepient"]
                 timepoint = formatdate(localtime=True)
                 print("Sent email on line {}".format(i))                
             elif mode.strip() == "SENT":
+                should_send = False
                 print("Ignoring line {}, file is sent".format(i))
             else:
+                should_send = False
                 print("Ignoring line {}, unkown mode = {}".format(i, mode))
 
-            writer.writerow([filename, "SENT", timepoint, price, raw_recepient, company_name])
+            if should_send:
+                send_mail(smtp_server, 
+                    send_from=config["from"], send_to=recepient, 
+                    subject=subject, text=body, files=files)
+
+            writer.writerow([raw_code, "SENT", timepoint, price, raw_recepient, company_name, file1, file2])
 
     return "tmp_" + basename(csvfile.name)
 
