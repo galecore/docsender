@@ -58,11 +58,11 @@ def read_configuration(config_file):
             conf[k] = v
     return conf
 
-def generate_subject_and_body(raw_code, subject_raw, body_raw):
+def generate_subject_and_body(raw_code, file_code, subject_raw, body_raw):
     '''Generates subject and body of the letter based on raw code and dummy strings'''
     year, month, _, _ = raw_code.split("_") # year_month_code_
     month = months[int(month)]
-    subject = subject_raw.format(month, year)
+    subject = subject_raw.format(file_code, month, year)
     body = body_raw.format(month, year)
     return subject, body
 
@@ -72,9 +72,9 @@ def process_csv(smtp_server, csvfile, config):
         reader = csv.reader(csvfile, delimiter=config["delimiter"])
         writer = csv.writer(tmp, delimiter=config["delimiter"])
         for i, row in enumerate(reader):
-            raw_code, mode, timepoint, price, raw_recepient, company_name, file1, file2 = row
+            raw_code, mode, timepoint, price, raw_recepient, company_name, file1, file2, file_code = row
             recepient = raw_recepient.replace("*", "").strip()
-            subject, body = generate_subject_and_body(raw_code, config["subject_raw"], config["body_raw"])
+            subject, body = generate_subject_and_body(raw_code, file_code, config["subject_raw"], config["body_raw"])
             files = [file1.strip(), file2.strip()]
             should_send = True
 
@@ -97,7 +97,7 @@ def process_csv(smtp_server, csvfile, config):
                     send_from=config["from"], send_to=recepient, 
                     subject=subject, text=body, files=files)
 
-            writer.writerow([raw_code, "SENT", timepoint, price, raw_recepient, company_name, file1, file2])
+            writer.writerow([raw_code, "SENT", timepoint, price, raw_recepient, company_name, file1, file2, file_code])
 
     return "tmp_" + basename(csvfile.name)
 
