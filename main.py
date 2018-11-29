@@ -32,7 +32,7 @@ def send_mail(smtp_server, send_from, send_to, subject="", text="", files=None):
     '''Sends email with attachments using logged smtp_server object'''
     msg = MIMEMultipart()
     msg['From'] = send_from
-    msg['To'] = send_to
+    msg['To'] = ", ".join(send_to)
     msg['Date'] = formatdate(localtime=True)
     msg['Subject'] = subject
     msg.attach(MIMEText(text))
@@ -47,7 +47,6 @@ def send_mail(smtp_server, send_from, send_to, subject="", text="", files=None):
 
 def read_configuration(config_file):
     '''Reads configuration from opened file, config format: key = value'''
-
     conf = {}
     with config_file as f:
         lines = f.read().splitlines()
@@ -72,32 +71,34 @@ def process_csv(smtp_server, csvfile, config):
         reader = csv.reader(csvfile, delimiter=config["delimiter"])
         writer = csv.writer(tmp, delimiter=config["delimiter"])
         for i, row in enumerate(reader):
-            raw_code, mode, timepoint, price, raw_recepient, company_name, file1, file2, file_code = row
-            recepient = raw_recepient.replace("*", "").strip()
+            raw_code, mode, timepoint, price, raw_recepients, company_name, file1, file2, file_code = row
+            recepients = list(map(lambda string: string.strip(), raw_recepients.replace("*", "").split(",")))
+            send_from = config["from"]    
             subject, body = generate_subject_and_body(raw_code, file_code, config["subject_raw"], config["body_raw"])
             files = [file1.strip(), file2.strip()]
+            
             should_send = True
-
             if mode.strip() == 'NO_SENT':
                 timepoint = formatdate(localtime=True)
                 print("Sent email on line {}".format(i))
             elif mode.strip() == "TEST":
-                recepient = config["test_recepient"]
+                recepients = [config["test_recepient"]]
                 timepoint = formatdate(localtime=True)
                 print("Sent email on line {}".format(i))                
-            elif mode.strip() == "SENT":
-                should_send = False
-                print("Ignoring line {}, file is sent".format(i))
             else:
                 should_send = False
-                print("Ignoring line {}, unkown mode = {}".format(i, mode))
+                print("Ignoring line {}, mode = {}".format(i, mode))
 
-            if should_send:
-                send_mail(smtp_server, 
-                    send_from=config["from"], send_to=recepient, 
-                    subject=subject, text=body, files=files)
-
-            writer.writerow([raw_code, "SENT", timepoint, price, raw_recepient, company_name, file1, file2, file_code])
+            result = "SENT"
+            try:
+                if should_send:
+                    send_mail(smtp_server,
+                        send_from=send_from, send_to=recepients, 
+                        subject=subject, text=body, files=files)
+            except:
+                result = "ERROR"
+            finally:
+                writer.writerow([raw_code, result, timepoint, price, raw_recepients, company_name, file1, file2, file_code])
 
     return "tmp_" + basename(csvfile.name)
 
