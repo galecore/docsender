@@ -51,7 +51,7 @@ def read_configuration(config_file):
     with config_file as f:
         lines = f.read().splitlines()
         lines = list(filter(lambda x: x.strip() != "" and x.strip()[0] != "#", lines))
-        lines = list(map(lambda l: map(lambda x: x.strip(), l.split("=")), lines))
+        lines = list(map(lambda l: map(lambda x: x.strip(), l.replace("#nl#", "\n").split("=")), lines))
         for line in lines:
             k, v = line
             conf[k] = v
@@ -67,7 +67,7 @@ def generate_subject_and_body(raw_code, file_code, subject_raw, body_raw):
 
 def process_csv(smtp_server, csvfile, config):
     '''Processes strings from csvfile and returns filename of a modified copy of csvfile'''
-    with open("tmp_" + basename(csvfile.name), 'w') as tmp:
+    with open("tmp_" + basename(csvfile.name), 'w', encoding="cp1251") as tmp:
         reader = csv.reader(csvfile, delimiter=config["delimiter"])
         writer = csv.writer(tmp, delimiter=config["delimiter"], lineterminator="\n")
         for i, row in enumerate(reader):
@@ -114,14 +114,14 @@ def open_smtp_server(config):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("config", type=argparse.FileType('r'), 
+    parser.add_argument("config", type=argparse.FileType('r', encoding="cp1251"), 
         help="Config file path.")
-    parser.add_argument("csv", type=argparse.FileType('r'), 
+    parser.add_argument("csv", type=argparse.FileType('r', encoding="cp1251"), 
         help="Input CSV file path")
 
     args = parser.parse_args()
 
-    with open("logfile.log", "w") as logger, redirect_stdout(logger), redirect_stderr(logger):
+    with open("logfile.log", "w", 1) as logger, redirect_stdout(logger), redirect_stderr(logger):
         config = read_configuration(args.config)
         smtp_server = open_smtp_server(config)
         tmp_filename = process_csv(smtp_server, args.csv, config)
